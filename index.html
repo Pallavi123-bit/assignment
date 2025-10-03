@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Simple Candy Crush Game</title>
+<style>
+  body {
+    background: #222;
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+  }
+  #game {
+    display: grid;
+    grid-template-columns: repeat(8, 60px);
+    grid-template-rows: repeat(8, 60px);
+    gap: 4px;
+    background: #444;
+    padding: 10px;
+    border-radius: 10px;
+  }
+  .candy {
+    width: 60px;
+    height: 60px;
+    border-radius: 12px;
+    cursor: pointer;
+    user-select: none;
+    box-shadow: 0 3px 5px rgba(0,0,0,0.3);
+    transition: transform 0.2s;
+  }
+  .candy:hover {
+    transform: scale(1.1);
+  }
+  /* Candy colors */
+  .red { background: #e74c3c; }
+  .green { background: #27ae60; }
+  .yellow { background: #f1c40f; }
+  .blue { background: #2980b9; }
+  .purple { background: #8e44ad; }
+  .orange { background: #e67e22; }
+  /* Selected candy highlight */
+  .selected {
+    outline: 3px solid #fff;
+    transform: scale(1.2);
+  }
+  #scoreboard {
+    color: white;
+    margin-top: 20px;
+    font-size: 24px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div>
+  <div id="game"></div>
+  <div id="scoreboard">Score: 0</div>
+</div>
+
+<script>
+  const game = document.getElementById('game');
+  const scoreboard = document.getElementById('scoreboard');
+  const width = 8;
+  const candyColors = ['red', 'green', 'yellow', 'blue', 'purple', 'orange'];
+
+  let squares = [];
+  let score = 0;
+  let selectedCandy = null;
+
+  // Create board
+  function createBoard() {
+    for (let i = 0; i < width * width; i++) {
+      const square = document.createElement('div');
+      square.setAttribute('data-id', i);
+      let randomColor = candyColors[Math.floor(Math.random() * candyColors.length)];
+      square.classList.add('candy', randomColor);
+      game.appendChild(square);
+      squares.push(square);
+    }
+  }
+
+  // Swap candies
+  function swapCandies(id1, id2) {
+    let candy1 = squares[id1];
+    let candy2 = squares[id2];
+
+    // Swap classes (colors)
+    let temp = candy1.className;
+    candy1.className = candy2.className;
+    candy2.className = temp;
+  }
+
+  // Check if two indices are adjacent
+  function isAdjacent(id1, id2) {
+    const adjacent = [
+      id1 - 1,
+      id1 + 1,
+      id1 - width,
+      id1 + width
+    ];
+    return adjacent.includes(id2);
+  }
+
+  // Handle click on candy
+  function candyClicked(e) {
+    const id = parseInt(e.target.getAttribute('data-id'));
+    if (selectedCandy === null) {
+      selectedCandy = id;
+      squares[id].classList.add('selected');
+    } else {
+      if (id === selectedCandy) {
+        // Deselect
+        squares[selectedCandy].classList.remove('selected');
+        selectedCandy = null;
+      } else if (isAdjacent(selectedCandy, id)) {
+        // Swap and check matches
+        squares[selectedCandy].classList.remove('selected');
+        swapCandies(selectedCandy, id);
+        if (!checkMatches()) {
+          // No match? Swap back
+          swapCandies(selectedCandy, id);
+        }
+        selectedCandy = null;
+        fillBoard();
+      } else {
+        // New selection
+        squares[selectedCandy].classList.remove('selected');
+        selectedCandy = id;
+        squares[id].classList.add('selected');
+      }
+    }
+  }
+
+  // Check for matches of 3 or more candies horizontally or vertically
+  function checkMatches() {
+    let matchFound = false;
+
+    // Helper to check and clear candies
+    function clearIfMatch(indices) {
+      if (indices.every(i => i < squares.length)) {
+        let color = squares[indices[0]].classList[1];
+        if (indices.every(i => squares[i].classList.contains(color))) {
+          indices.forEach(i => squares[i].className = 'candy'); // Remove candy (clear color)
+          score += indices.length * 10;
+          matchFound = true;
+        }
+      }
+    }
+
+    // Horizontal matches
+    for (let i = 0; i < width * width; i++) {
+      let row = Math.floor(i / width);
+      if (i % width < width - 2) {
+        clearIfMatch([i, i + 1, i + 2]);
+      }
+      if (i % width < width - 3) {
+        // Check for 4 in a row (optional)
+        clearIfMatch([i, i + 1, i + 2, i + 3]);
+      }
+    }
+
+    // Vertical matches
+    for (let i = 0; i < width * (width - 2); i++) {
+      clearIfMatch([i, i + width, i + width * 2]);
+    }
+    for (let i = 0; i < width * (width - 3); i++) {
+      // Check for 4 in a column (optional)
+      clearIfMatch([i, i + width, i + width * 2, i + width * 3]);
+    }
+
+    return matchFound;
+  }
+
+  // Drop candies to fill empty spaces and generate new candies at top
+  function fillBoard() {
+    for (let i = squares.length - 1; i >= 0; i--) {
+      if (squares[i].className === 'candy') { // empty
+        // Move candy above down
+        let current = i;
+        while (current - width >= 0 && squares[current].className === 'candy') {
+          current -= width;
+        }
+        if (current >= 0) {
+          squares[i].className = squares[current].className;
+          squares[current].className = 'candy';
+        } else {
+          // Top row, create new candy
+          let randomColor = candyColors[Math.floor(Math.random() * candyColors.length)];
+          squares[i].className = 'candy ' + randomColor;
+        }
+      }
+    }
+
+    // After fill, check for more matches recursively
+    if (checkMatches()) {
+      fillBoard();
+    }
+    updateScore();
+  }
+
+  function updateScore() {
+    scoreboard.textContent = 'Score: ' + score;
+  }
+
+  // Add click listeners
+  function addClickListeners() {
+    squares.forEach(square => {
+      square.addEventListener('click', candyClicked);
+    });
+  }
+
+  // Initialize game
+  createBoard();
+  addClickListeners();
+  checkMatches();
+  updateScore();
+</script>
+
+</body>
+</html>
